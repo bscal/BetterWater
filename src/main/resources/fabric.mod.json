@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "betterwater",
+  "version": "${version}",
+  "name": "Betterwater",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "LGPL-3.0",
+  "icon": "assets/betterwater/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "me.bscal.betterwater.client.BetterWaterClient"
+    ],
+    "main": [
+      "me.bscal.betterwater.BetterWater"
+    ]
+  },
+  "mixins": [
+    "betterwater.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.8",
+    "fabric": "*",
+    "minecraft": "1.19"
+  }
+}

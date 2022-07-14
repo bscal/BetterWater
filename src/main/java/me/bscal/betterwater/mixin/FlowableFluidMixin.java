@@ -21,12 +21,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 
 @Mixin(FlowableFluid.class)
 public abstract class FlowableFluidMixin extends Fluid
 {
-    private static final Random Random = new Random();
     private static final List<Direction> ShuffledDirections = new ArrayList<>(
             List.of(new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}));
 
@@ -48,7 +46,7 @@ public abstract class FlowableFluidMixin extends Fluid
             int level = FluidPhysics.GetLevel(state);
             if (level <= FluidPhysics.EMPTY)
             {
-                world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+                world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
                 return;
             }
 
@@ -66,7 +64,7 @@ public abstract class FlowableFluidMixin extends Fluid
             else
             {
                 int currentLevel = level;
-                Collections.shuffle(ShuffledDirections, Random);
+                Collections.shuffle(ShuffledDirections);
                 for (Direction direction : ShuffledDirections)
                 {
                     if (currentLevel <= FluidPhysics.MIN_LEVEL) break;

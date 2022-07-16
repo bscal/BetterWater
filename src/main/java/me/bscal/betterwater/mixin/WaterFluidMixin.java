@@ -12,7 +12,7 @@ public abstract class WaterFluidMixin extends FlowableFluid
 {
 
     @Inject(method = "isInfinite", at = @At(value = "HEAD"), cancellable = true)
-    public void isInfinite(CallbackInfoReturnable<Boolean> cir)
+    public void IsInfinite(CallbackInfoReturnable<Boolean> cir)
     {
         cir.setReturnValue(false);
     }

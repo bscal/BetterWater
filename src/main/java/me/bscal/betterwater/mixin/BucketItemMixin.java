@@ -39,7 +39,7 @@ public abstract class BucketItemMixin extends ItemMixin implements FluidModifica
     private Fluid fluid;
 
     @Override
-    public void appendTooltipMixin(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context, CallbackInfo ci)
+    public void AppendTooltipMixin(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context, CallbackInfo ci)
     {
         if (IsWater(this.fluid) && stack.hasNbt())
         {
@@ -51,7 +51,7 @@ public abstract class BucketItemMixin extends ItemMixin implements FluidModifica
     }
 
     @Override
-    public void appendStacksMixin(ItemGroup group, DefaultedList<ItemStack> stacks, CallbackInfo ci)
+    public void AppendStacksMixin(ItemGroup group, DefaultedList<ItemStack> stacks, CallbackInfo ci)
     {
         if (this.isIn(group) && IsWater(this.fluid))
         {
@@ -65,7 +65,7 @@ public abstract class BucketItemMixin extends ItemMixin implements FluidModifica
             value = "INVOKE",
             target = "Lnet/minecraft/world/World;setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Z"),
             cancellable = true)
-    public void placeFluid(PlayerEntity player, World world, BlockPos pos, BlockHitResult hitResult, CallbackInfoReturnable<Boolean> cir)
+    public void PlaceFluid(PlayerEntity player, World world, BlockPos pos, BlockHitResult hitResult, CallbackInfoReturnable<Boolean> cir)
     {
         if (player.isSneaking() && IsWater(this.fluid))
         {
@@ -83,8 +83,10 @@ public abstract class BucketItemMixin extends ItemMixin implements FluidModifica
         }
     }
 
+    // TODO Inject into use() from before raycast, raycast self and handle on use and empty
+
     @Inject(method = "use", at = @At(value = "RETURN", ordinal = 4), cancellable = true)
-    public void useEmptyBucket(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir)
+    public void UseEmptyBucket(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir)
     {
         if (user.isSneaking() && IsWater(this.fluid))
         {
@@ -98,15 +100,18 @@ public abstract class BucketItemMixin extends ItemMixin implements FluidModifica
         }
     }
 
-    // Captures locals because we need to check if fluid is water, _ means unused
+    // _ means unused
     @Inject(method = "use", at = @At(value = "RETURN", ordinal = 2), cancellable = true, locals = LocalCapture.CAPTURE_FAILHARD)
-    public void useFillBucket(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir,
-                              ItemStack _0, BlockHitResult _1, BlockPos _2, Direction _3, BlockPos _4, BlockState _5,
+    public void UseFillBucket(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir,
+                              ItemStack _0, BlockHitResult _1, BlockPos _2, Direction _3, BlockPos _4, BlockState blockState,
                               FluidDrainable _6, ItemStack filledBucketStack)
     {
         if (filledBucketStack.getItem() instanceof BucketItemAccessor bucketItem && IsWater(bucketItem.getFluid()))
         {
-            FluidPhysics.SetItemWaterLevelNbt(filledBucketStack, (byte) 8);
+            var fluidState = blockState.getFluidState();
+            var isFlowing = fluidState.getFluid() == Fluids.FLOWING_WATER;
+            byte waterLevel = isFlowing ? (byte) FluidPhysics.GetLevel(fluidState) : (byte) 8;
+            FluidPhysics.SetItemWaterLevelNbt(filledBucketStack, waterLevel);
             cir.setReturnValue(TypedActionResult.success(filledBucketStack));
         }
     }

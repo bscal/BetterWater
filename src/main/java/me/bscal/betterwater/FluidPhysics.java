@@ -4,13 +4,17 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.FluidFillable;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.fluid.Fluids;
 import net.minecraft.fluid.WaterFluid;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
 public final class FluidPhysics
@@ -73,7 +77,7 @@ public final class FluidPhysics
         return stack.getNbt().getByte(LEVEL_KEY);
     }
 
-/*    public static BlockHitResult Raycast(World world, PlayerEntity player, RaycastContext.FluidHandling fluidHandling) {
+    public static BlockHitResult Raycast(World world, PlayerEntity player, RaycastContext.FluidHandling fluidHandling) {
         float f = player.getPitch();
         float g = player.getYaw();
         float toDegrees = MathHelper.PI / 180.0f;
@@ -86,6 +90,6 @@ public final class FluidPhysics
         Vec3d vec3d = player.getEyePos();
         Vec3d vec3d2 = vec3d.add(i * j * 5.0f, k * 5.0f, h * j * 5.0f);
         return world.raycast(new RaycastContext(vec3d, vec3d2, RaycastContext.ShapeType.OUTLINE, fluidHandling, player));
-    }*/
+    }
 
 }

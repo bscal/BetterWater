@@ -25,12 +25,12 @@ public abstract class ItemMixin implements ItemConvertible, FabricItem
     protected abstract boolean isIn(ItemGroup group);
 
     @Inject(method = "appendTooltip(Lnet/minecraft/item/ItemStack;Lnet/minecraft/world/World;Ljava/util/List;Lnet/minecraft/client/item/TooltipContext;)V", at = @At(value = "TAIL"))
-    public void appendTooltipMixin(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context, CallbackInfo ci)
+    public void AppendTooltipMixin(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context, CallbackInfo ci)
     {
     }
 
     @Inject(method = "appendStacks", at = @At(value = "TAIL"))
-    public void appendStacksMixin(ItemGroup group, DefaultedList<ItemStack> stacks, CallbackInfo ci)
+    public void AppendStacksMixin(ItemGroup group, DefaultedList<ItemStack> stacks, CallbackInfo ci)
     {
     }
 }

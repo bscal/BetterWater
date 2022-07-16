@@ -34,7 +34,7 @@ public abstract class FlowableFluidMixin extends Fluid
                     value = "INVOKE",
                     target = "Lnet/minecraft/fluid/FlowableFluid;tryFlow(Lnet/minecraft/world/WorldAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/fluid/FluidState;)V"),
             cancellable = true)
-    protected void onScheduledTick(World world, BlockPos pos, FluidState state, CallbackInfo ci)
+    protected void OnScheduledTick(World world, BlockPos pos, FluidState state, CallbackInfo ci)
     {
         Fluid fluid = state.getFluid();
         if (fluid instanceof WaterFluid.Flowing || fluid instanceof WaterFluid.Still)
@@ -125,7 +125,7 @@ public abstract class FlowableFluidMixin extends Fluid
     }
 
     @Inject(at = @At("HEAD"), method = "canFlowThrough", cancellable = true)
-    private void canFlowThrough(BlockView world, Fluid fluid, BlockPos pos, BlockState state,
+    private void CanFlowThrough(BlockView world, Fluid fluid, BlockPos pos, BlockState state,
                                 Direction face, BlockPos fromPos, BlockState fromState,
                                 FluidState fluidState, CallbackInfoReturnable<Boolean> cir)
     {
@@ -134,7 +134,7 @@ public abstract class FlowableFluidMixin extends Fluid
     }
 
     @Inject(at = @At("HEAD"), method = "canFlow", cancellable = true)
-    private void canFlow(BlockView world, BlockPos fluidPos, BlockState fluidBlockState,
+    private void CanFlow(BlockView world, BlockPos fluidPos, BlockState fluidBlockState,
                          Direction flowDirection, BlockPos flowTo, BlockState flowToBlockState,
                          FluidState fluidState, Fluid fluid, CallbackInfoReturnable<Boolean> cir)
     {
@@ -143,7 +143,7 @@ public abstract class FlowableFluidMixin extends Fluid
     }
 
     @Inject(at = @At("HEAD"), method = "getUpdatedState", cancellable = true)
-    private void getUpdatedState(WorldView world, BlockPos pos, BlockState state, CallbackInfoReturnable<FluidState> cir)
+    private void GetUpdatedState(WorldView world, BlockPos pos, BlockState state, CallbackInfoReturnable<FluidState> cir)
     {
         if (state.getFluidState().getFluid() instanceof WaterFluid.Flowing)
             cir.setReturnValue(Fluids.FLOWING_WATER.getFlowing(state.getFluidState().getLevel(), false));

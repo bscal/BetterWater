@@ -1,23 +1,21 @@
 package me.bscal.betterwater.mixin;
 
 import me.bscal.betterwater.FluidPhysics;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.FluidDrainable;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.Fluid;
 import net.minecraft.fluid.Fluids;
 import net.minecraft.item.BucketItem;
 import net.minecraft.item.FluidModificationItem;
-import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
-import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
@@ -27,7 +25,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.List;
 
@@ -41,83 +38,83 @@ public abstract class BucketItemMixin extends ItemMixin implements FluidModifica
     @Override
     public void AppendTooltipMixin(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context, CallbackInfo ci)
     {
-        if (IsWater(this.fluid) && stack.hasNbt())
+        if (this.fluid == Fluids.WATER && stack.hasNbt())
         {
             var nbt = stack.getNbt();
-            if (!nbt.contains(FluidPhysics.LEVEL_KEY)) return;
+            if (!nbt.contains(FluidPhysics.LEVEL_KEY))
+                return;
             var level = nbt.getByte(FluidPhysics.LEVEL_KEY);
             tooltip.add(Text.of(String.format("Fill Level: %d/8", level)));
         }
     }
 
-    @Override
-    public void AppendStacksMixin(ItemGroup group, DefaultedList<ItemStack> stacks, CallbackInfo ci)
-    {
-        if (this.isIn(group) && IsWater(this.fluid))
-        {
-            var stack = new ItemStack(this);
-            FluidPhysics.SetItemWaterLevelNbt(stack, (byte) 8);
-            stacks.add(stack);
-        }
-    }
-
-    @Inject(method = "placeFluid", at = @At(
-            value = "INVOKE",
-            target = "Lnet/minecraft/world/World;setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;I)Z"),
+    @Inject(method = "use", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/item/BucketItem;raycast(Lnet/minecraft/world/World;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/world/RaycastContext$FluidHandling;)Lnet/minecraft/util/hit/BlockHitResult;"),
             cancellable = true)
-    public void PlaceFluid(PlayerEntity player, World world, BlockPos pos, BlockHitResult hitResult, CallbackInfoReturnable<Boolean> cir)
+    public void Use(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir)
     {
-        if (player.isSneaking() && IsWater(this.fluid))
+        boolean isFilledWithWater = this.fluid == Fluids.WATER;
+        boolean isEmpty = this.fluid == Fluids.EMPTY;
+        if (isFilledWithWater || isEmpty)
         {
-            // placeFluid() does not contain Hand variable, we have to get main hand item.
-            var bucket = player.getMainHandStack();
-            var level = FluidPhysics.GetItemWaterLevelNbt(bucket);
-            if (level > 1)
-            {
-                var fluidState = world.getFluidState(pos);
-                var blockState = world.getBlockState(pos);
-                FluidPhysics.SetLevel(world, pos, FluidPhysics.GetLevel(fluidState) + 1, blockState);
-                ((BucketItemAccessor) this).invokePlayEmptyingSound(player, world, pos);
-                cir.setReturnValue(true);
-            }
-        }
-    }
+            var ray = FluidPhysics.Raycast(world, user, RaycastContext.FluidHandling.WATER);
+            if (ray.getType() != HitResult.Type.BLOCK)
+                return;
 
-    // TODO Inject into use() from before raycast, raycast self and handle on use and empty
+            var itemStack = user.getStackInHand(hand);
+            BlockPos blockPos = ray.getBlockPos();
+            Direction direction = ray.getSide();
+            BlockPos dirBlockPos = blockPos.offset(direction);
 
-    @Inject(method = "use", at = @At(value = "RETURN", ordinal = 4), cancellable = true)
-    public void UseEmptyBucket(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir)
-    {
-        if (user.isSneaking() && IsWater(this.fluid))
-        {
-            var stack = user.getStackInHand(hand);
-            var level = FluidPhysics.GetItemWaterLevelNbt(stack);
-            if (level > 1)
-            {
-                FluidPhysics.SetItemWaterLevelNbt(stack, --level);
-                cir.setReturnValue(TypedActionResult.success(stack));
-            }
-        }
-    }
+            if (!world.canPlayerModifyAt(user, blockPos) || !user.canPlaceOn(dirBlockPos, direction, itemStack))
+                return;
 
-    // _ means unused
-    @Inject(method = "use", at = @At(value = "RETURN", ordinal = 2), cancellable = true, locals = LocalCapture.CAPTURE_FAILHARD)
-    public void UseFillBucket(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir,
-                              ItemStack _0, BlockHitResult _1, BlockPos _2, Direction _3, BlockPos _4, BlockState blockState,
-                              FluidDrainable _6, ItemStack filledBucketStack)
-    {
-        if (filledBucketStack.getItem() instanceof BucketItemAccessor bucketItem && IsWater(bucketItem.getFluid()))
-        {
+            var sourceFluidState = world.getFluidState(blockPos);
+            if (sourceFluidState.getFluid() == Fluids.WATER) // We dont wants to override default source block impl
+                return;
+            BlockPos waterBlockPos = sourceFluidState.getFluid() == Fluids.FLOWING_WATER ? blockPos : dirBlockPos;
+
+            var blockState = world.getBlockState(waterBlockPos);
             var fluidState = blockState.getFluidState();
-            var isFlowing = fluidState.getFluid() == Fluids.FLOWING_WATER;
-            byte waterLevel = isFlowing ? (byte) FluidPhysics.GetLevel(fluidState) : (byte) 8;
-            FluidPhysics.SetItemWaterLevelNbt(filledBucketStack, waterLevel);
-            cir.setReturnValue(TypedActionResult.success(filledBucketStack));
-        }
-    }
+            int waterBlockLevel = FluidPhysics.GetLevel(fluidState);
 
-    private boolean IsWater(Fluid fluid)
-    {
-        return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER;
+            var nbt = itemStack.getOrCreateNbt();
+
+            int currentBucketFill;
+            if (nbt.contains(FluidPhysics.LEVEL_KEY))
+                currentBucketFill = nbt.getByte(FluidPhysics.LEVEL_KEY);
+            else if (isFilledWithWater)
+                currentBucketFill = FluidPhysics.MAX_LEVEL;
+            else
+                currentBucketFill = FluidPhysics.EMPTY;
+
+            if (isEmpty && currentBucketFill < FluidPhysics.MAX_LEVEL && fluidState.getFluid() == Fluids.FLOWING_WATER && !user.isSneaking()) // Handle bucket fill
+            {
+                int bucketSpace = FluidPhysics.MAX_LEVEL - currentBucketFill;
+                FluidPhysics.SetLevel(world, waterBlockPos, waterBlockLevel - bucketSpace, blockState);
+                Fluids.WATER.getBucketFillSound().ifPresent(sound -> user.playSound(sound, 1.0f, 1.0f));
+
+                nbt.putByte(FluidPhysics.LEVEL_KEY, (byte) Math.min(currentBucketFill + waterBlockLevel, FluidPhysics.MAX_LEVEL));
+                itemStack = new ItemStack(Items.WATER_BUCKET);
+                itemStack.setNbt(nbt);
+                cir.setReturnValue(TypedActionResult.success(itemStack));
+            }
+            else if (currentBucketFill > FluidPhysics.EMPTY) // Handle bucket empty
+            {
+                int swapAmount = user.isSneaking() ? 1 : currentBucketFill;
+                FluidPhysics.SetLevel(world, waterBlockPos, waterBlockLevel + swapAmount, blockState);
+                ((BucketItemAccessor) this).invokePlayEmptyingSound(user, world, waterBlockPos);
+
+                currentBucketFill -= swapAmount;
+                if (currentBucketFill > FluidPhysics.EMPTY)
+                {
+                    nbt.putByte(FluidPhysics.LEVEL_KEY, (byte) currentBucketFill);
+                    itemStack.setNbt(nbt);
+                }
+                else
+                    itemStack = BucketItem.getEmptiedStack(itemStack, user);
+                cir.setReturnValue(TypedActionResult.success(itemStack));
+            }
+        }
     }
 }

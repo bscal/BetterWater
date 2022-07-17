@@ -8,8 +8,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.fluid.Fluids;
 import net.minecraft.fluid.WaterFluid;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -43,12 +41,12 @@ public final class FluidPhysics
 
     public static void SetLevel(World world, BlockPos pos, int level, BlockState state)
     {
-        if (level == EMPTY)
+        if (level <= EMPTY)
             world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
-        else if (level == MAX_LEVEL && state.getBlock() instanceof FluidFillable)
+        else if (level >= MAX_LEVEL && state.getBlock() instanceof FluidFillable)
             world.setBlockState(pos, Fluids.WATER.getDefaultState().getBlockState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
         else
-            world.setBlockState(pos, Fluids.FLOWING_WATER.getFlowing(level, false).getBlockState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
+            world.setBlockState(pos, Fluids.FLOWING_WATER.getFlowing(Math.min(level, MAX_LEVEL), false).getBlockState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
     }
 
     public static boolean TryRemoveLevels(World world, BlockPos pos, BlockState state, int levelsNeeded)
@@ -62,22 +60,8 @@ public final class FluidPhysics
         return false;
     }
 
-    public static void SetItemWaterLevelNbt(ItemStack outStack, byte amount)
+    public static BlockHitResult Raycast(World world, PlayerEntity player, RaycastContext.FluidHandling fluidHandling)
     {
-        assert !outStack.isEmpty(): "stack cannot be empty";
-        var nbt = outStack.getOrCreateNbt();
-        nbt.putByte(LEVEL_KEY, MathHelper.clamp(amount, (byte)0, (byte)8));
-        outStack.setNbt(nbt);
-    }
-
-    public static byte GetItemWaterLevelNbt(ItemStack stack)
-    {
-        assert !stack.isEmpty(): "stack cannot be empty";
-        if (!stack.hasNbt()) return 0;
-        return stack.getNbt().getByte(LEVEL_KEY);
-    }
-
-    public static BlockHitResult Raycast(World world, PlayerEntity player, RaycastContext.FluidHandling fluidHandling) {
         float f = player.getPitch();
         float g = player.getYaw();
         float toDegrees = MathHelper.PI / 180.0f;

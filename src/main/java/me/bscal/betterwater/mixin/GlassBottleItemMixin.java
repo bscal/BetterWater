@@ -1,5 +1,6 @@
 package me.bscal.betterwater.mixin;
 
+import me.bscal.betterwater.BetterWater;
 import me.bscal.betterwater.FluidPhysics;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.GlassBottleItem;
@@ -40,20 +41,24 @@ public abstract class GlassBottleItemMixin extends Item
             cancellable = true)
     public void use(World world, PlayerEntity user, Hand hand, CallbackInfoReturnable<TypedActionResult<ItemStack>> cir)
     {
+        int levelsNeeded = BetterWater.Settings().BottleWaterLevel;
+        if (levelsNeeded <= 0)
+            return;
+
         var ray = FluidPhysics.Raycast(world, user, RaycastContext.FluidHandling.WATER);
         // COMMENT - returning here will continue defaults use method. This will send another ray.
-        if (ray.getType() == HitResult.Type.MISS || ray.getType() != HitResult.Type.BLOCK) return;
+        if (ray.getType() != HitResult.Type.BLOCK)
+            return;
 
         var blockPos = ray.getBlockPos();
-        if (!world.canPlayerModifyAt(user, blockPos)) return;
-
-        var itemStack = user.getStackInHand(hand);
-        if (FluidPhysics.TryRemoveLevels(world, blockPos, world.getBlockState(blockPos), 2))
+        if (world.canPlayerModifyAt(user, blockPos) && FluidPhysics.TryRemoveLevels(world, blockPos, world.getBlockState(blockPos), levelsNeeded))
         {
             world.playSound(user, user.getX(), user.getY(), user.getZ(), SoundEvents.ITEM_BOTTLE_FILL, SoundCategory.NEUTRAL, 1.0f, 1.0f);
             world.emitGameEvent(user, GameEvent.FLUID_PICKUP, blockPos);
+            var itemStack = user.getStackInHand(hand);
+            var itemWaterBottle = PotionUtil.setPotion(new ItemStack(Items.POTION), Potions.WATER);
             // TODO handle water quality or an event?
-            cir.setReturnValue(TypedActionResult.success(this.fill(itemStack, user, PotionUtil.setPotion(new ItemStack(Items.POTION), Potions.WATER)), world.isClient()));
+            cir.setReturnValue(TypedActionResult.success(this.fill(itemStack, user, itemWaterBottle), world.isClient()));
         }
     }
 }

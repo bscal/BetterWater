@@ -1,5 +1,6 @@
-package me.bscal.betterwater;
+package me.bscal.betterwater.common;
 
+import me.bscal.betterwater.BetterWater;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -22,10 +23,6 @@ public final class FluidPhysics
     public static final int MAX_LEVEL = 8;
     public static final int EMPTY = 0;
     public static final String LEVEL_KEY = BetterWater.MOD_ID + ":level";
-
-    private FluidPhysics()
-    {
-    }
 
     public static int GetLevel(FluidState fluidstate)
     {
@@ -60,7 +57,6 @@ public final class FluidPhysics
         }
         return false;
     }
-
 
     public static BlockHitResult Raycast(World world, PlayerEntity player, RaycastContext.FluidHandling fluidHandling)
     {

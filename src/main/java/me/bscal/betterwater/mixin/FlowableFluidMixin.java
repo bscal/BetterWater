@@ -1,7 +1,8 @@
 package me.bscal.betterwater.mixin;
 
-import me.bscal.betterwater.FluidPhysics;
-import me.bscal.betterwater.Vec2i;
+import me.bscal.betterwater.BetterWater;
+import me.bscal.betterwater.common.FluidPhysics;
+import me.bscal.betterwater.common.Vec2i;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -9,6 +10,7 @@ import net.minecraft.block.FluidFillable;
 import net.minecraft.fluid.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldView;
@@ -28,11 +30,8 @@ public abstract class FlowableFluidMixin extends Fluid
     private static final List<Direction> ShuffledDirections = new ArrayList<>(
             List.of(new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}));
 
-    @Inject(
-            method = "onScheduledTick",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/fluid/FlowableFluid;tryFlow(Lnet/minecraft/world/WorldAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/fluid/FluidState;)V"),
+    @Inject(method = "onScheduledTick", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/fluid/FlowableFluid;tryFlow(Lnet/minecraft/world/WorldAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/fluid/FluidState;)V"),
             cancellable = true)
     protected void OnScheduledTick(World world, BlockPos pos, FluidState state, CallbackInfo ci)
     {
@@ -47,6 +46,24 @@ public abstract class FlowableFluidMixin extends Fluid
             if (level <= FluidPhysics.EMPTY)
             {
                 world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
+                return;
+            }
+
+            // TODO this could be worked on a bit. Maybe more functionality like biome or temperature
+            boolean hasRain = world.hasRain(pos);
+            if (level == 1)
+            {
+                if (!hasRain && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().EvaporationChance)
+                {
+                    world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
+                    return;
+                }
+                // NOTE this should be fine, we want to continously tick
+                world.createAndScheduleFluidTick(pos, fluid, 60);
+            }
+            if (hasRain && level < 8 && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().RainfallFillChance)
+            {
+                FluidPhysics.SetLevel(world, pos, ++level, blockState);
                 return;
             }
 
@@ -94,8 +111,7 @@ public abstract class FlowableFluidMixin extends Fluid
 
     public boolean CanFlowSideways(FluidState srcFluid, int srcLevel, BlockState dstState, FluidState dstFluid, int dstLevel)
     {
-        boolean canFlow = srcLevel > dstLevel;
-        return canFlow && dstLevel < FluidPhysics.MAX_LEVEL && CanMoveTo(srcFluid, dstState, dstFluid);
+        return srcLevel > dstLevel && dstLevel < FluidPhysics.MAX_LEVEL && CanMoveTo(srcFluid, dstState, dstFluid);
     }
 
     private boolean CanMoveTo(FluidState srcFluid, BlockState dstState, FluidState dstFluid)

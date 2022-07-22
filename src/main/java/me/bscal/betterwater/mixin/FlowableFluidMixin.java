@@ -2,6 +2,7 @@ package me.bscal.betterwater.mixin;
 
 import me.bscal.betterwater.BetterWater;
 import me.bscal.betterwater.common.FluidPhysics;
+import me.bscal.betterwater.common.FluidTicker;
 import me.bscal.betterwater.common.Vec2i;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -10,7 +11,6 @@ import net.minecraft.block.FluidFillable;
 import net.minecraft.fluid.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.random.Random;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldView;
@@ -49,22 +49,21 @@ public abstract class FlowableFluidMixin extends Fluid
                 return;
             }
 
-            // TODO this could be worked on a bit. Maybe more functionality like biome or temperature
-            boolean hasRain = world.hasRain(pos);
+/*            if (!world.isClient() && level == 1 || world.hasRain(pos))
+            {
+                if (!FluidTicker.TickerSet.contains(pos))
+                    FluidTicker.Add((ServerWorld) world, pos);
+                world.createAndScheduleFluidTick(pos, fluid, FluidTicker.TICK_RATE);
+            }*/
             if (level == 1)
             {
-                if (!hasRain && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().EvaporationChance)
+                if (!world.hasRain(pos) && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().EvaporationChance)
                 {
                     world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
                     return;
                 }
-                // NOTE this should be fine, we want to continously tick
-                world.createAndScheduleFluidTick(pos, fluid, 60);
-            }
-            if (hasRain && level < 8 && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().RainfallFillChance)
-            {
-                FluidPhysics.SetLevel(world, pos, ++level, blockState);
-                return;
+                else
+                    world.createAndScheduleFluidTick(pos, state.getFluid(), FluidTicker.TICK_RATE);
             }
 
             BlockPos downPos = pos.down();

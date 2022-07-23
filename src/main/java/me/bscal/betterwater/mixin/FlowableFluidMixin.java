@@ -9,11 +9,13 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.FluidFillable;
 import net.minecraft.fluid.*;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldView;
+import org.apache.logging.log4j.core.jmx.Server;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,12 +25,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 @Mixin(FlowableFluid.class)
 public abstract class FlowableFluidMixin extends Fluid
 {
-    private static final List<Direction> ShuffledDirections = new ArrayList<>(
-            List.of(new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}));
+    private static final Direction[] DIRECTIONS = new Direction[] {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
 
     @Inject(method = "onScheduledTick", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/fluid/FlowableFluid;tryFlow(Lnet/minecraft/world/WorldAccess;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/fluid/FluidState;)V"),
@@ -49,21 +51,19 @@ public abstract class FlowableFluidMixin extends Fluid
                 return;
             }
 
-/*            if (!world.isClient() && level == 1 || world.hasRain(pos))
+/*            if (!world.isClient && level == 1)
             {
-                if (!FluidTicker.TickerSet.contains(pos))
-                    FluidTicker.Add((ServerWorld) world, pos);
-                world.createAndScheduleFluidTick(pos, fluid, FluidTicker.TICK_RATE);
+                FluidTicker.GetOrCreate((ServerWorld) world).Add(pos);
+                return;
             }*/
+
             if (level == 1)
             {
                 if (!world.hasRain(pos) && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().EvaporationChance)
-                {
                     world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
-                    return;
-                }
                 else
-                    world.createAndScheduleFluidTick(pos, state.getFluid(), FluidTicker.TICK_RATE);
+                    world.createAndScheduleFluidTick(pos, state.getFluid(), 10);
+                return;
             }
 
             BlockPos downPos = pos.down();
@@ -80,8 +80,8 @@ public abstract class FlowableFluidMixin extends Fluid
             else
             {
                 int currentLevel = level;
-                Collections.shuffle(ShuffledDirections);
-                for (Direction direction : ShuffledDirections)
+                Shuffle(DIRECTIONS);
+                for (Direction direction : DIRECTIONS)
                 {
                     if (currentLevel <= FluidPhysics.MIN_LEVEL) break;
                     BlockPos dirPos = pos.offset(direction);
@@ -92,13 +92,11 @@ public abstract class FlowableFluidMixin extends Fluid
                     if (CanFlowSideways(state, currentLevel, dirState, dirFluidState, dirLevel))
                     {
                         var levels = GetLevelDiffsFlow1(currentLevel, dirLevel);
-                        if (levels.x() < FluidPhysics.EMPTY || levels.y() > FluidPhysics.MAX_LEVEL) continue;
                         currentLevel = levels.x();
                         FluidPhysics.SetLevel(world, dirPos, levels.y(), dirState);
                     }
                 }
-                if (currentLevel != level)
-                    FluidPhysics.SetLevel(world, pos, currentLevel, blockState);
+                FluidPhysics.SetLevel(world, pos, currentLevel, blockState);
             }
         }
     }
@@ -162,5 +160,17 @@ public abstract class FlowableFluidMixin extends Fluid
     {
         if (state.getFluidState().getFluid() instanceof WaterFluid.Flowing)
             cir.setReturnValue(Fluids.FLOWING_WATER.getFlowing(state.getFluidState().getLevel(), false));
+    }
+
+    private static void Shuffle(Direction[] array)
+    {
+        for(int i = array.length - 1; i > 0; --i) // fisher yates shuffle
+        {
+            int rand = BetterWater.MCRandom.nextInt();
+            int pos = ((rand < 0) ? -rand : rand) % (i + 1);
+            Direction t = array[pos];
+            array[pos] = array[i];
+            array[i] = t;
+        }
     }
 }

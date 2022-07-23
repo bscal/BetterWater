@@ -6,65 +6,107 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.fluid.Fluids;
-import net.minecraft.server.MinecraftServer;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
+import net.minecraft.world.PersistentState;
 
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.Queue;
 
-public class FluidTicker
+public class FluidTicker extends PersistentState
 {
     public static final int TICK_RATE = 1200;
-    public static final Queue<Ticker> Tickers = new PriorityQueue<>(Comparator.comparingInt(o -> o.Tick));
-    public static final ObjectOpenHashSet<BlockPos> TickerSet = new ObjectOpenHashSet<>();
+    public Queue<Ticker> Tickers = new PriorityQueue<>(Comparator.comparingInt(o -> o.Tick));
+    public ObjectOpenHashSet<BlockPos> TickerSet = new ObjectOpenHashSet<>();
+    public ServerWorld World;
 
-    public static void Add(ServerWorld world, BlockPos pos)
+    public static FluidTicker GetOrCreate(ServerWorld world)
     {
-        var ticker = new Ticker();
-        ticker.Tick = world.getServer().getTicks() + TICK_RATE;
-        ticker.World = world;
-        ticker.Pos = pos;
-        Tickers.add(ticker);
-        TickerSet.add(pos);
+        var fluidTicker = world.getPersistentStateManager().getOrCreate(FluidTicker::FromNbt,
+                FluidTicker::new,
+                BetterWater.MOD_ID + ":FluidTicker");
+        if (fluidTicker.World == null)
+            fluidTicker.World = world;
+        return fluidTicker;
     }
 
-    public static void TickServer(MinecraftServer server)
+    public void Add(BlockPos pos)
     {
-        int currentTick = server.getTicks();
-        var iter = Tickers.iterator();
-        while (iter.hasNext())
-        {
-            var ticker = iter.next();
-            if (ticker.Tick > currentTick) break;
-            iter.remove();
-            if (++ticker.Counter < 3)
-            {
-                ticker.Tick = currentTick + TICK_RATE;
-                Tickers.add(ticker);
-            }
-            else
-                TickerSet.remove(ticker.Pos);
+        var ticker = new Ticker();
+        ticker.Tick = World.getServer().getTicks() + TICK_RATE;
+        ticker.Pos = pos;
+        if (TickerSet.add(pos))
+            Tickers.add(ticker);
+    }
 
-            if (ticker.World == null || !ticker.World.isChunkLoaded(ChunkSectionPos.toLong(ticker.Pos))) continue;
-            FluidState state = ticker.World.getFluidState(ticker.Pos);
+    public void TickServer()
+    {
+        int currentTick = World.getServer().getTicks();
+        while (Tickers.size() > 0)
+        {
+            var entry = Tickers.peek();
+            if (entry.Tick > currentTick) return;
+            Tickers.remove();
+
+            if (++entry.Counter < 3)
+                Add(entry.Pos);
+            else
+                TickerSet.remove(entry.Pos);
+
+            if (!World.isChunkLoaded(ChunkSectionPos.toLong(entry.Pos))) continue;
+            FluidState state = World.getFluidState(entry.Pos);
             if (state.getFluid() != Fluids.WATER || state.getFluid() != Fluids.FLOWING_WATER) continue;
             int level = FluidPhysics.GetLevel(state);
-            if (level == 1 && ticker.World.hasRain(ticker.Pos) && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().EvaporationChance)
+            if (level == 1 && World.hasRain(entry.Pos) && BetterWater.MCRandom.nextFloat() <= BetterWater.Settings().EvaporationChance)
             {
-                ticker.World.setBlockState(ticker.Pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
-                ticker.World.updateNeighborsAlways(ticker.Pos, ticker.World.getBlockState(ticker.Pos).getBlock());
+                World.setBlockState(entry.Pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL | Block.REDRAW_ON_MAIN_THREAD);
+                World.updateNeighborsAlways(entry.Pos, World.getBlockState(entry.Pos).getBlock());
             }
         }
     }
 
+    public static FluidTicker FromNbt(NbtCompound nbt)
+    {
+        FluidTicker fluidTicker = new FluidTicker();
+        NbtList list = nbt.getList("WorldFluidTickers", NbtList.COMPOUND_TYPE);
+        for (NbtElement nbtElement : list)
+        {
+            NbtCompound tickerNbt = (NbtCompound) nbtElement;
+            Ticker ticker = new Ticker();
+            ticker.Tick = tickerNbt.getInt("ticks");
+            ticker.Counter = tickerNbt.getInt("counter");
+            ticker.Pos = BlockPos.fromLong(tickerNbt.getLong("pos"));
+            fluidTicker.Tickers.add(ticker);
+            fluidTicker.TickerSet.add(ticker.Pos);
+        }
+        return fluidTicker;
+    }
+
+    @Override
+    public NbtCompound writeNbt(NbtCompound nbt)
+    {
+        NbtList nbtList = new NbtList();
+        for (var ticker : Tickers)
+        {
+            NbtCompound tickerNbt = new NbtCompound();
+            tickerNbt.putInt("ticks", ticker.Tick);
+            tickerNbt.putInt("counter", ticker.Counter);
+            tickerNbt.putLong("pos", ticker.Pos.asLong());
+            nbtList.add(tickerNbt);
+        }
+        nbt.put("WorldFluidTickers", nbtList);
+        return nbt;
+    }
+
     public static class Ticker
     {
-        public int Tick;
-        public ServerWorld World;
         public BlockPos Pos;
+        public int Tick;
         public int Counter;
     }
 }
